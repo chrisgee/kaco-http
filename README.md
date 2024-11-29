@@ -123,3 +123,32 @@ serial number as an argument.
 I'm going to write a module for the excellent Victron VenusOS to display the values
 of the individual inverters.
 
+## undocumented modbus registers
+Most of the modbus registers follow the SunSpec specification. However some features of the Kaco inverters are not covered by it and are not documented by Kaco otherwise. Using the procedures described above, I reverseengineered in particular the registers to control write access and shadow management.
+
+The Kaco app is using the fdbg.cgi api to directly send/receive modbus telegrams. Picking up what is sent by the Kaco app when entering the "shadow management" section of an inverter, we find that we are receiving a POST on fdbg.cgi with data
+
+    {"data":"03030fb8000106d9"}
+
+interpreting this using the modbus specification:
+
+* The first byte 03 is the modbus address.
+* The second byte 03 is the 'read holding registers'
+* next two bytes are starting address. In this case 0x0fb8
+* next two bytes are real length. In this case 0x0001. reading one register (two bytes long)
+* the final two bytes are the CRC code of the entire command. 
+
+The response of the kaco inverter to this post is either of the following two
+
+    content =  '{"dat":"ok","data":"0303020000c184"}' #off case
+    content =  '{"dat":"ok","data":"03030200010044"}' #on case  
+
+and is the expected response to the read command accoring to modbus spec. Counting bytes starting with zero: 
+address 03 (byte 0), command 'read holding register' (byte 1), two bytes long (byte 2) response in bytes 3 and 4 and CRC code (bytes 5 and 6)
+
+Similarily, posting {"data":"03060fb80001cad9"} on the fdbg.cgi turns on shadow management. and posting {"data":"03060fb800000b19"} turns it off.
+
+the same manipulation can be done using the modbus TCP protocol. The register adress for shadow management is 0x0fb8 or 4024. allowed values are 0x0000 and 0x0001.
+
+Another register that was reverse engineered like this is the write access control register which is at 0x0fba or 4026.
+
